@@ -14,6 +14,25 @@ should review and understand the generated work before submitting it.
 - Reviewed the frontend/backend contract and tested database concurrency.
 - Added the four restaurant images supplied with the assignment.
 
+## What worked well
+
+- Turning the SRS into a checklist kept page content, booking rules, and Docker
+  boundaries consistent.
+- Short code comments and the architecture workbook made important decisions
+  easier to review.
+- Mutation testing found behavior changes that normal passing tests did not
+  detect.
+
+## What needed correction
+
+- Temporary AI-generated image drafts were replaced when the supplied image
+  collection became available.
+- The first reservation tests used database mocks and missed broken capacity,
+  SQL, validation, and response behavior. Exact contract checks and a real
+  PostgreSQL capacity and concurrency test were added.
+- The demo guide originally described a kitchen image that is not in the
+  supplied collection. Its gallery wording now matches the four shipped files.
+
 ## Image sources
 
 The final application uses these four files from the assignment image

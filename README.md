@@ -108,6 +108,10 @@ npm --prefix frontend run check
 docker compose --env-file .env.example run --rm --no-deps \
   api python -m unittest -v test_app
 
+# Real PostgreSQL capacity test. It removes only its own temporary records.
+docker compose run --rm -e RUN_POSTGRES_INTEGRATION=1 \
+  api python -m unittest -v test_app.CafeFaussePostgresIntegrationTests
+
 # Start the development stack, then check its database-backed readiness.
 docker compose --env-file .env.example up -d --build --wait
 curl -fsS http://127.0.0.1:5173/api/readyz

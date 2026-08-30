@@ -338,6 +338,8 @@ docker compose config --quiet
 docker compose -f compose.yaml --profile tools config --quiet
 npm --prefix frontend run check
 docker compose run --rm --no-deps api python -m unittest -v test_app
+docker compose run --rm -e RUN_POSTGRES_INTEGRATION=1 \
+  api python -m unittest -v test_app.CafeFaussePostgresIntegrationTests
 docker compose -f compose.yaml build web api
 
 docker compose up -d --build --wait

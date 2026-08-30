@@ -29,6 +29,8 @@ covers every item named in the project rubric.
 
 5. Choose a future date and test email that you can show in the recording.
    Do not show a real password or private customer data.
+   The database does not need to be empty; filter the database view to the
+   test email used in the recording.
 6. Prepare your camera and government ID. Follow the course identity rules at
    the start of the recording, and avoid showing unrelated personal details.
 
@@ -91,7 +93,8 @@ ORDER BY created_at DESC;
 
 - Open About Us and show the founders, 2010 history, mission, and local
   ingredient values.
-- Open Gallery and show the restaurant, food, kitchen, and event images.
+- Open Gallery and show the ambiance, steak, dining-room, and special-event
+  images.
 - Open the lightbox. Use next, previous, and Escape to show keyboard access.
 - Point out the awards and both review quotes.
 
@@ -101,8 +104,8 @@ ORDER BY created_at DESC;
   boundaries.
 - Show the separate Docker networks, health-gated startup, and optional Adminer
   profile.
-- Mention the 10 Flask tests, frontend rule check, production build, and
-  30-request concurrency test.
+- Mention the Flask unit tests, frontend rule check, production build, and
+  PostgreSQL-backed 30-request capacity and concurrency test.
 - Explain the deliberate limits: newsletter storage only, no product admin
   dashboard, and local HTTP for the course demo.
 
