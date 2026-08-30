@@ -1,0 +1,100 @@
+name: ${COMPOSE_PROJECT_NAME:-cafe-fausse}
+
+services:
+  # Production-like entry point: serve the React bundle and proxy /api to Flask.
+  web:
+    build:
+      context: ./frontend
+      target: production
+    depends_on:
+      # Do not accept browser traffic until Flask can also reach PostgreSQL.
+      api:
+        condition: service_healthy
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${WEB_PORT:-8080}:80"
+    networks:
+      - frontend
+    restart: unless-stopped
+
+  # The API is the only service allowed to cross both application networks.
+  api:
+    build:
+      context: ./backend
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      # Separate libpq fields keep punctuation in passwords out of a connection URL.
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: ${POSTGRES_DB:-cafe_fausse}
+      PGUSER: ${POSTGRES_USER:-cafe_fausse}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?copy .env.example to .env}
+      RESTAURANT_TIMEZONE: ${RESTAURANT_TIMEZONE:-America/New_York}
+      RESERVATION_SLOT_MINUTES: ${RESERVATION_SLOT_MINUTES:-30}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/readyz', timeout=2)
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    networks:
+      - frontend
+      - backend
+    restart: unless-stopped
+
+  # PostgreSQL stays on the private backend network in demo mode.
+  postgres:
+    image: postgres:${POSTGRES_IMAGE_TAG:-18.6-bookworm}
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-cafe_fausse}
+      POSTGRES_USER: ${POSTGRES_USER:-cafe_fausse}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?copy .env.example to .env}
+      PGDATA: ${POSTGRES_PGDATA:-/var/lib/postgresql/18/docker}
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    volumes:
+      # PostgreSQL 18 keeps versioned data below /var/lib/postgresql.
+      - postgres_data:/var/lib/postgresql
+      # The official image runs init scripts only when the volume is new.
+      - ./database/init.sql:/docker-entrypoint-initdb.d/001_schema.sql:ro
+    networks:
+      - backend
+    restart: unless-stopped
+
+  # Opt-in demo tool. Keep it loopback-only and never enable it on a public host.
+  adminer:
+    image: adminer:6.0.1-standalone
+    profiles:
+      - tools
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${ADMINER_PORT:-8091}:8080"
+    networks:
+      - backend
+    restart: "no"
+
+networks:
+  frontend:
+    driver: bridge
+  backend:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    name: ${POSTGRES_VOLUME_NAME:-cafe-fausse-postgres-18}
