@@ -21,13 +21,15 @@ The required course application is implemented.
 - Random assignment across 30 tables with transaction-safe overlap protection.
 - PostgreSQL tables for customers and reservations.
 - Docker development and production-like demo modes.
-- Caddy routing, compression, request-size limits, and security headers.
+- Caddy local HTTPS, HTTP redirection, routing, compression, request-size
+  limits, and security headers.
 - Health-gated startup, private networks, and optional Adminer access.
 - Focused frontend logic checks, Flask unit tests, and real database checks.
 
 Cloud hosting, email delivery, cancellations, and a product admin dashboard are
-outside the approved scope. The local demo stack uses HTTP, so it is not a full
-public production deployment.
+outside the approved scope. The local demo uses HTTPS with Caddy's internal
+certificate authority. It is not a public production deployment because it has
+no public domain or publicly trusted certificate.
 
 ## 2. Repository map
 
@@ -44,33 +46,28 @@ public production deployment.
 | `frontend/public/images/` | The four supplied WebP restaurant images used by the pages. |
 | `frontend/scripts/` | Small runnable checks for non-visual client logic. |
 | `frontend/vite.config.js` | Local `/api` proxy. |
-| `frontend/Caddyfile` | Demo static hosting and `/api` reverse proxy. |
+| `frontend/Caddyfile` | Demo HTTPS, HTTP redirection, static hosting, and `/api` reverse proxy. |
 | `Makefile` | Short commands for common stack modes. |
 | `README.md` | Setup, feature, API, and safety quick reference. |
-| `DEMO_GUIDE.md` | Recorded-demo order and final submission checklist. |
-| `ai-tooling.md` | Required disclosure of AI-assisted work and image sources. |
+| `quantic_docs/` | Architecture, demo, AI disclosure, and local assignment references. |
 
 ## 3. System context
 
 ```text
-                         frontend network
-
-Browser ──HTTP──> Vite (development) ─┐
-                                      ├──/api/*──> Flask API
-Browser ──HTTP──> Caddy (demo) ───────┘                │
-                                                       │ SQL
-                                              backend network
-                                                       │
-                                                       v
-                                                   PostgreSQL
-                                                       ^
-                                                       │
-                                              Adminer (optional)
+Browser ──HTTP──> Vite (development debugging) ─┐
+                                                ├──HTTP /api/*──> Flask API
+Browser ─HTTPS──> Caddy (demo) ──/api───────────────┘                    │
+                         │                                               │ SQL
+                         └──/adminer──> Adminer ─────────────────────────┤
+HTTP :8080 ──308 redirect──> HTTPS :9443                                 │
+                                                                           v
+                                                                      PostgreSQL
 ```
 
 The browser never connects to PostgreSQL. In demo mode, it also cannot connect
-to Flask directly. Caddy is the single public entry point and forwards only
-`/api/*` requests to Flask.
+to Flask directly. Caddy is the single browser entry point. It receives local
+HTTPS traffic, forwards `/api/*` requests to Flask, and exposes the optional
+Adminer service under `/adminer/` without giving it a direct demo host port.
 
 ## 4. Component boundaries
 
@@ -78,7 +75,7 @@ to Flask directly. Caddy is the single public entry point and forwards only
 | --- | --- | --- |
 | React | Pages, forms, client navigation, accessible feedback. | Booking capacity or database rules. |
 | Vite | Local build server and local `/api` proxy. | Production traffic. |
-| Caddy | Compiled files, API proxying, small request limits, headers. | Reservation decisions. |
+| Caddy | Local TLS, HTTP redirection, compiled files, API and Adminer proxying, small request limits, headers. | Reservation decisions. |
 | Flask | Validation, workflow rules, transactions, response messages. | Final uniqueness guarantees. |
 | PostgreSQL | Persistent records, foreign keys, checks, uniqueness. | User interface behavior. |
 | Adminer | Local inspection during development and the demo. | Product administration. |
@@ -92,29 +89,45 @@ it. Two browser requests can reach Flask at nearly the same time.
 
 Run `make up`. Docker Compose reads both Compose files automatically.
 
-- Vite serves React on host port `5173`.
-- Flask's debug server is available on host port `8000`.
+- Vite serves React on loopback host port `5173` over HTTP.
+- Flask's debug server is available on loopback host port `8000` over HTTP.
 - PostgreSQL is available on host port `5432` for local tools.
 - Source directories are mounted into the containers for hot reload.
 - All published ports bind to `127.0.0.1` by default.
+
+These HTTP addresses are direct debugging endpoints. Use the production-like
+demo mode when testing browser behavior over HTTPS.
 
 ### Production-like demo mode
 
 Run `make demo`. The command passes only `compose.yaml`, so the development
 override is not loaded.
 
-- Caddy serves the compiled React bundle on host port `8080`.
+- Caddy serves the compiled React bundle over HTTPS on host port `9443`.
+- HTTP requests on host port `8080` receive a permanent redirect to HTTPS.
 - Gunicorn runs Flask with two workers.
 - Flask and PostgreSQL have no host ports.
 - Containers use restart policies.
+- A named Caddy data volume keeps the local certificate authority across
+  container rebuilds.
 
 This mode checks packaging and routing. It is not a complete public deployment
-because it uses local HTTP and local environment variables.
+because it uses an internal local certificate authority and local environment
+variables instead of a public domain and managed services.
+
+Run `make demo-ca` after the demo starts to copy Caddy's public root
+certificate to `/tmp/cafe-fausse-caddy-root.crt`. Trust that certificate in
+the browser's certificate store for a warning-free demo. Run `make demo-smoke`
+to copy the certificate and verify the HTTPS route without disabling
+certificate checks. Never copy or commit Caddy's CA private key or `/data`
+directory.
 
 ### Optional database viewer
 
-Run `make tools` or `make demo-tools`. The `tools` profile adds Adminer on host
-port `8091`. Use `postgres` as the database server inside Adminer.
+Run `make tools` or `make demo-tools`. Development exposes Adminer directly on
+loopback port `8091`. Demo mode gives it no direct host port; open it through
+Caddy at `https://localhost:9443/adminer/`. Use `postgres` as the database
+server inside Adminer.
 
 Adminer is not part of the product. Never enable it on a public host.
 
@@ -237,21 +250,26 @@ not overlap any part of that visit.
 
 ## 9. Network and trust boundaries
 
-The `frontend` network contains `web` and `api`. The `backend` network contains
-`api`, `postgres`, and optional `adminer`. Only Flask joins both networks.
+The `frontend` network contains `web`, `api`, and optional `adminer`. The
+`backend` network contains `api`, `postgres`, and optional `adminer`. Flask and
+Adminer join both networks for different reasons: Flask serves the API, while
+Adminer lets Caddy reach the database viewer without publishing Adminer's port.
 
 This layout limits accidental access:
 
 - The web container cannot open a direct PostgreSQL connection.
 - PostgreSQL is not reachable from the host in demo mode.
+- Adminer is not reachable directly from the host in demo mode. Caddy proxies
+  `/adminer/` only when the optional service is running.
 - The browser uses same-origin `/api` requests, so production does not need a
-  broad CORS policy.
+  broad CORS policy. Caddy ends the HTTPS connection and uses HTTP only inside
+  the private Docker network when it forwards a request to Flask.
 - In demo mode, Caddy rejects request bodies above 32 KB on API paths. This is
   enough for the small JSON forms in the current scope. The Vite development
   proxy does not apply this Caddy rule.
 
 Passwords belong in `.env` for local work. A shared or public deployment must
-use a managed secret store and HTTPS.
+use a managed secret store, a real domain, and a publicly trusted certificate.
 
 Changing `BIND_ADDRESS` affects every port published by the active mode. Do not
 set it to `0.0.0.0` while the database or Adminer is enabled unless that access
@@ -263,13 +281,17 @@ is intentional and protected.
 | --- | --- | --- |
 | `BIND_ADDRESS` | Host address for published ports. | `127.0.0.1` |
 | `WEB_DEV_PORT` | Vite host port. | `5173` |
-| `WEB_PORT` | Caddy host port. | `8080` |
+| `WEB_PORT` | Caddy HTTP redirect host port. | `8080` |
+| `WEB_HTTPS_PORT` | Caddy HTTPS host and container port. | `9443` |
 | `API_PORT` | Direct Flask development port. | `8000` |
 | `POSTGRES_PORT` | Direct PostgreSQL development port. | `5432` |
-| `ADMINER_PORT` | Optional Adminer host port. | `8091` |
+| `ADMINER_PORT` | Direct Adminer port in development debugging mode. | `8091` |
 | `POSTGRES_*` | Database identity, password, storage, and image settings. | See `.env.example`. |
 | `RESTAURANT_TIMEZONE` | Zone used to interpret restaurant slots. | `America/New_York` |
 | `RESERVATION_SLOT_MINUTES` | Fixed start-time interval; the API currently requires 30. | `30` |
+
+If `WEB_HTTPS_PORT` changes, pass the same port in `DEMO_BASE_URL` when running
+`make demo-smoke`.
 
 Compose passes the database values to Flask as standard `PG*` connection
 fields. Keeping the password separate means characters such as `@` do not
@@ -291,6 +313,9 @@ limit, and 90-day window are small code constants in `backend/app.py`.
 | React code does not update | Development override is not active. | Use `docker compose up`, not `-f compose.yaml`. |
 | A new frontend package is missing | The development modules volume is stale. | Rebuild, then recreate only that development volume if needed. |
 | API route returns `404` | Flask has no route for that `/api/*` path and method. | Check the Flask route and request method. |
+| `/adminer/` returns `502` | The optional Adminer profile is not running. | Start `make demo-tools`. |
+| Browser warns about the demo certificate | Caddy's local root is not trusted by that browser. | Run `make demo-ca`, trust the copied root, and restart the browser. |
+| A previously trusted demo warns again | The Caddy data volume was removed and a new local CA was created. | Remove the old root, then copy and trust the new one. |
 
 ## 12. Safe change recipes
 
@@ -346,9 +371,9 @@ docker compose up -d --build --wait
 curl -fsS http://127.0.0.1:5173/api/readyz
 docker compose down
 
-docker compose -f compose.yaml up -d --build --wait
-curl -fsS http://127.0.0.1:8080/api/readyz
-docker compose -f compose.yaml down
+docker compose -f compose.yaml --profile tools up -d --build --wait
+make demo-tools-smoke
+docker compose -f compose.yaml --profile tools down
 ```
 
 Also open all five pages at mobile and desktop sizes. Test form errors, an
@@ -364,7 +389,8 @@ table count, and booking window. These product decisions remain open:
 - Whether one customer may hold more than one reservation at the same time.
 - Cancellation and update behavior.
 - Customer data retention and newsletter unsubscribe behavior.
-- Public hosting provider, HTTPS termination, backups, and recovery targets.
+- Public hosting provider, domain, publicly trusted certificate, backups, and
+  recovery targets.
 - Whether a later version needs an authenticated manager screen.
 
 Record each decision before its code depends on it.

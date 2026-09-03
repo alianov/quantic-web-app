@@ -1,4 +1,6 @@
 .DS_Store
+.idea/
+*.swp
 .env
 .venv/
 __pycache__/

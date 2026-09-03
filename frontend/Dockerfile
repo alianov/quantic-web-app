@@ -24,4 +24,9 @@ FROM caddy:2.11.4-alpine AS production
 COPY Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /app/dist /srv
 
-EXPOSE 80
+# Caddy keeps port 80 only for HTTP-to-HTTPS redirects.
+ENV WEB_HTTPS_PORT=9443
+EXPOSE 80 9443
+
+HEALTHCHECK --interval=5s --timeout=3s --start-period=5s --retries=12 \
+    CMD wget -q --spider -T 2 "https://localhost:${WEB_HTTPS_PORT}/healthz"

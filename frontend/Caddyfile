@@ -1,16 +1,38 @@
-:80 {
+{
+	# Some clients omit SNI for IP addresses, so give them the matching certificate.
+	default_sni 127.0.0.1
+}
+
+localhost:{$WEB_HTTPS_PORT:9443}, 127.0.0.1:{$WEB_HTTPS_PORT:9443} {
+	# Caddy creates a local certificate; the host must trust its local root CA.
+	tls internal
+
 	encode gzip zstd
 
 	header {
-		Content-Security-Policy "default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
 		Referrer-Policy "no-referrer"
 		X-Content-Type-Options "nosniff"
 		X-Frame-Options "DENY"
 	}
 
+	# The application can use a strict policy; Adminer's interface needs inline assets.
+	@app not path /adminer /adminer/*
+	header @app Content-Security-Policy "default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+
 	# This route checks the web container only. Flask has separate health routes.
 	handle /healthz {
 		respond 200
+	}
+
+	redir /adminer /adminer/ 308
+
+	# Set the prefix ourselves so a browser cannot inject it into Adminer cookies.
+	handle_path /adminer/* {
+		reverse_proxy adminer:8080 {
+			header_up X-Forwarded-Prefix /adminer
+			# Adminer receives private HTTP, so mark its browser cookies as HTTPS-only.
+			header_down Set-Cookie "(.*)" "$1; Secure"
+		}
 	}
 
 	# Handle API paths before the React fallback, or errors may return index.html.

@@ -17,21 +17,46 @@ covers every item named in the project rubric.
    docker compose -f compose.yaml --profile tools ps
    ```
 
-3. Open these pages:
+3. Check the HTTPS route. This command also copies Caddy's public root
+   certificate to `/tmp/cafe-fausse-caddy-root.crt`:
 
-   - Application: `http://127.0.0.1:8080`
-   - Adminer: `http://127.0.0.1:8091`
+   ```bash
+   make demo-tools-smoke
+   ```
 
-4. In Adminer, select PostgreSQL and use:
+4. On macOS, trust that local certificate before recording, then restart the
+   browser:
+
+   ```bash
+   sudo security add-trusted-cert -d -r trustRoot \
+     -k /Library/Keychains/System.keychain \
+     /tmp/cafe-fausse-caddy-root.crt
+   ```
+
+   Some browsers use their own certificate store and may need a separate
+   import. Trust only the certificate copied from your own stack. Never copy or
+   commit Caddy's CA private key or its `/data` directory.
+
+5. Open these pages:
+
+   - Application: `https://localhost:9443`
+   - Adminer: `https://localhost:9443/adminer/`
+
+   The application also accepts `https://127.0.0.1:9443`. The old HTTP
+   addresses on port `8080` redirect to HTTPS. Caddy also protects Adminer with
+   the same local certificate. Adminer remains an optional local tool and is
+   not part of the product.
+
+6. In Adminer, select PostgreSQL and use:
 
    - Server: `postgres`
    - Username, password, and database: values from `.env`
 
-5. Choose a future date and test email that you can show in the recording.
+7. Choose a future date and test email that you can show in the recording.
    Do not show a real password or private customer data.
    The database does not need to be empty; filter the database view to the
    test email used in the recording.
-6. Prepare your camera and government ID. Follow the course identity rules at
+8. Prepare your camera and government ID. Follow the course identity rules at
    the start of the recording, and avoid showing unrelated personal details.
 
 ## Suggested recording order
@@ -40,7 +65,8 @@ covers every item named in the project rubric.
 
 - Appear on camera and complete the required government-ID check.
 - State that Café Fausse is a responsive five-page restaurant application.
-- Name React, Flask, PostgreSQL, Docker Compose, Gunicorn, and Caddy.
+- Name React, Flask, PostgreSQL, Docker Compose, Gunicorn, and Caddy. Explain
+  that Caddy provides local HTTPS for the demo.
 - Explain that the browser calls same-origin `/api` routes and cannot connect
   directly to PostgreSQL.
 
@@ -100,19 +126,20 @@ ORDER BY created_at DESC;
 
 ### 6:15–7:30 — Decisions and quality checks
 
-- Show `ARCHITECTURE_WORKBOOK.md` and explain the frontend/backend/database
+- Show `quantic_docs/ARCHITECTURE_WORKBOOK.md` and explain the frontend/backend/database
   boundaries.
 - Show the separate Docker networks, health-gated startup, and optional Adminer
   profile.
 - Mention the Flask unit tests, frontend rule check, production build, and
   PostgreSQL-backed 30-request capacity and concurrency test.
 - Explain the deliberate limits: newsletter storage only, no product admin
-  dashboard, and local HTTP for the course demo.
+  dashboard, and a local Caddy certificate instead of a public domain and
+  publicly trusted certificate.
 
 ## Submission checklist
 
-- Put all source files, `README.md`, `ARCHITECTURE_WORKBOOK.md`, and
-  `ai-tooling.md` in the GitHub repository.
+- Put all source files, `README.md`, `quantic_docs/ARCHITECTURE_WORKBOOK.md`,
+  and `quantic_docs/ai-tooling.md` in the GitHub repository.
 - If the repository is private, add the `quantic-grader` GitHub account as a
   collaborator.
 - Record a clear 5–10 minute video using the flow above.
@@ -131,4 +158,6 @@ docker compose -f compose.yaml --profile tools down
 ```
 
 Do not add `--volumes` unless you intentionally want to delete the local demo
-data.
+data and Caddy certificate authority. A new CA must be trusted after the next
+demo start. Remove the old Caddy root from the system trust store if you no
+longer use it.

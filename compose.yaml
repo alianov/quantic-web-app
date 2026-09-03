@@ -6,17 +6,25 @@ services:
     build:
       context: ./frontend
       target: production
+    environment:
+      # Use the same port inside and outside Docker so Caddy redirects correctly.
+      WEB_HTTPS_PORT: ${WEB_HTTPS_PORT:-9443}
     depends_on:
       # Do not accept browser traffic until Flask can also reach PostgreSQL.
       api:
         condition: service_healthy
     ports:
+      # Keep the old HTTP address only to redirect browsers to local HTTPS.
       - "${BIND_ADDRESS:-127.0.0.1}:${WEB_PORT:-8080}:80"
+      - "${BIND_ADDRESS:-127.0.0.1}:${WEB_HTTPS_PORT:-9443}:${WEB_HTTPS_PORT:-9443}"
+    volumes:
+      # Keep the local certificate authority stable across container rebuilds.
+      - caddy_data:/data
     networks:
       - frontend
     restart: unless-stopped
 
-  # The API is the only service allowed to cross both application networks.
+  # The API joins both networks but keeps its host port closed in demo mode.
   api:
     build:
       context: ./backend
@@ -73,7 +81,7 @@ services:
       - backend
     restart: unless-stopped
 
-  # Opt-in demo tool. Keep it loopback-only and never enable it on a public host.
+  # Opt-in demo tool. Caddy exposes it only through the local HTTPS gateway.
   adminer:
     image: adminer:6.0.1-standalone
     profiles:
@@ -83,9 +91,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    ports:
-      - "${BIND_ADDRESS:-127.0.0.1}:${ADMINER_PORT:-8091}:8080"
     networks:
+      - frontend
       - backend
     restart: "no"
 
@@ -96,5 +103,6 @@ networks:
     driver: bridge
 
 volumes:
+  caddy_data:
   postgres_data:
     name: ${POSTGRES_VOLUME_NAME:-cafe-fausse-postgres-18}

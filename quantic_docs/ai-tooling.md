@@ -51,6 +51,7 @@ or shipped by the final application.
 
 - Confirm that all restaurant content matches the supplied SRS.
 - Run the tests and complete the five-page demo before submission.
-- Replace the local password and add HTTPS before any shared deployment.
+- Replace the local password and use a real domain with a publicly trusted
+  certificate before any shared deployment.
 - Decide how to handle cancellations, data retention, backups, and newsletter
   delivery before using the app as a public service.
