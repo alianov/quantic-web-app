@@ -195,6 +195,16 @@ def readiness():
                     )
                     AND EXISTS (
                         SELECT 1
+                        FROM information_schema.columns
+                        WHERE table_schema = 'public'
+                          AND table_name = 'reservations'
+                          AND column_name = 'local_time'
+                          AND data_type = 'timestamp without time zone'
+                          AND is_generated = 'ALWAYS'
+                          AND is_nullable = 'NO'
+                    )
+                    AND EXISTS (
+                        SELECT 1
                         FROM pg_constraint
                         WHERE conname = 'reservations_no_table_overlap'
                           AND conrelid = to_regclass('public.reservations')

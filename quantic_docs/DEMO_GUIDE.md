@@ -90,7 +90,8 @@ covers every item named in the project rubric.
   counts.
 - Mention the approved rules: 30-minute starts, two-hour visits, 1–12 guests,
   30 tables, Washington, DC time, and a 90-day window.
-- Submit one invalid example, such as 13 guests, and show the friendly error.
+- Enter `abc` in the optional phone field, submit, and show the server's clear
+  validation message. Then enter a valid phone number.
 - Submit a valid reservation and show the assigned table number.
 - Explain that PostgreSQL prevents overlapping use of the same table and the
   API returns a conflict if all tables are busy.
@@ -110,7 +111,7 @@ SELECT id, name, email, phone, newsletter_signup
 FROM customers
 ORDER BY created_at DESC;
 
-SELECT id, customer_id, time_slot, end_time, guest_count, table_number
+SELECT id, customer_id, time_slot, local_time, end_time, guest_count, table_number
 FROM reservations
 ORDER BY created_at DESC;
 ```

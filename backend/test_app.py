@@ -96,6 +96,10 @@ class CafeFausseApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 503)
         self.assertEqual(response.get_json()["status"], "not_ready")
+        self.assertIn("local_time", connection.fake_cursor.calls[0][0])
+        self.assertIn(
+            "is_generated = 'ALWAYS'", connection.fake_cursor.calls[0][0]
+        )
         self.assertIn("reservations_no_table_overlap", connection.fake_cursor.calls[0][0])
 
     def test_reservation_validation_normalizes_customer_data(self):
@@ -417,14 +421,19 @@ class CafeFaussePostgresIntegrationTests(unittest.TestCase):
         with cafe.connect_database() as connection:
             row = connection.execute(
                 """
-                SELECT COUNT(*), COUNT(DISTINCT reservation.table_number)
+                SELECT COUNT(*),
+                       COUNT(DISTINCT reservation.table_number),
+                       BOOL_AND(
+                           reservation.local_time = reservation.time_slot
+                               AT TIME ZONE 'America/New_York'
+                       )
                 FROM reservations AS reservation
                 JOIN customers AS customer ON customer.id = reservation.customer_id
                 WHERE customer.email LIKE %s
                 """,
                 (self.email_pattern,),
             ).fetchone()
-        self.assertEqual(row, (30, 30))
+        self.assertEqual(row, (30, 30, True))
 
 
 if __name__ == "__main__":

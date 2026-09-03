@@ -20,6 +20,10 @@ CREATE TABLE IF NOT EXISTS reservations (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     customer_id BIGINT NOT NULL REFERENCES customers(id),
     time_slot TIMESTAMPTZ NOT NULL,
+    -- Derive the Washington wall-clock value so it cannot drift from time_slot.
+    local_time TIMESTAMP WITHOUT TIME ZONE GENERATED ALWAYS AS (
+        time_slot AT TIME ZONE 'America/New_York'
+    ) STORED NOT NULL,
     end_time TIMESTAMPTZ NOT NULL,
     guest_count SMALLINT NOT NULL CHECK (guest_count BETWEEN 1 AND 12),
     table_number SMALLINT NOT NULL CHECK (table_number BETWEEN 1 AND 30),
@@ -33,6 +37,13 @@ CREATE TABLE IF NOT EXISTS reservations (
             tstzrange(time_slot, end_time, '[)') WITH &&
         )
 );
+
+-- Existing course databases may predate the generated display column.
+ALTER TABLE reservations
+    ADD COLUMN IF NOT EXISTS local_time TIMESTAMP WITHOUT TIME ZONE
+    GENERATED ALWAYS AS (
+        time_slot AT TIME ZONE 'America/New_York'
+    ) STORED NOT NULL;
 
 -- Fill the new duration column when this script is applied to the earlier schema.
 ALTER TABLE reservations ADD COLUMN IF NOT EXISTS end_time TIMESTAMPTZ;

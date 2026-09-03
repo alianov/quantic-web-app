@@ -230,6 +230,7 @@ product must send messages.
 | `id` | Database-generated primary key. |
 | `customer_id` | Required reference to `customers.id`. |
 | `time_slot` | Required start timestamp with time zone. |
+| `local_time` | Database-generated Washington wall-clock value derived from `time_slot`; display only. |
 | `end_time` | Required end timestamp, exactly two hours after the start. |
 | `guest_count` | Required whole number from 1 through 12. |
 | `table_number` | Must be from 1 through 30. |
@@ -242,6 +243,7 @@ Important database guarantees:
 - No table number outside the 30-table range.
 - No overlapping time range for the same table.
 - Every stored visit lasts exactly two hours.
+- `local_time` always matches `time_slot` converted to `America/New_York`.
 
 The `btree_gist` extension supports a PostgreSQL exclusion constraint. It
 compares the table number and the half-open time range `[start, end)`. This
@@ -300,6 +302,9 @@ break a database URL. `DATABASE_URL` remains supported for non-Compose use.
 Python logic. `APP_ENV` is passed to the API for runtime context but has no
 current behavior switch. The two-hour duration, 30-table count, 1–12 guest
 limit, and 90-day window are small code constants in `backend/app.py`.
+The generated `reservations.local_time` expression is fixed to
+`America/New_York`. Changing the restaurant timezone also requires rebuilding
+that generated column with the new zone.
 
 ## 11. Common failure cases
 

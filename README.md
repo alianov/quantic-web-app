@@ -50,6 +50,10 @@ The last start time leaves enough time for the two-hour visit before closing.
 PostgreSQL rejects any overlapping use of the same table, even when two
 requests reach the API at nearly the same time.
 
+`time_slot` remains the canonical timestamp. PostgreSQL generates `local_time`
+beside it as the matching Washington wall-clock value for database inspection.
+Booking and conflict logic always uses `time_slot`.
+
 ## Run options
 
 First-time Make commands create `.env` from the safe local example when needed.
